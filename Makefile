@@ -204,10 +204,10 @@ $(LOCALBIN):
 ## Tool Binaries
 KUBECTL ?= kubectl
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
-CONTROLLER_GEN ?= /nix/store/ivnac4cqrngqlr45j3vxzwprx6kryb59-controller-tools-0.19.0/bin/controller-gen
+
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
-
+CONTROLLER_GEN ?= $(shell command -v controller-gen)
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
 CONTROLLER_TOOLS_VERSION ?= v0.16.1

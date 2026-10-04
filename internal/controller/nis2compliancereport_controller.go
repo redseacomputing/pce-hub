@@ -27,8 +27,8 @@ import (
 	pceredseacomputinggithubcomv1alpha1 "github.com/redseacomputing/pce-hub/api/v1alpha1"
 )
 
-// NIS2ComplianceReportReconciler reconciles a NIS2ComplianceReport object
-type NIS2ComplianceReportReconciler struct {
+// Nis2ComplianceReportReconciler reconciles a Nis2ComplianceReport object
+type Nis2ComplianceReportReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -40,13 +40,13 @@ type NIS2ComplianceReportReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the NIS2ComplianceReport object against the actual cluster state, and then
+// the Nis2ComplianceReport object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.0/pkg/reconcile
-func (r *NIS2ComplianceReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Nis2ComplianceReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -55,8 +55,8 @@ func (r *NIS2ComplianceReportReconciler) Reconcile(ctx context.Context, req ctrl
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *NIS2ComplianceReportReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Nis2ComplianceReportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&pceredseacomputinggithubcomv1alpha1.NIS2ComplianceReport{}).
+		For(&pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{}).
 		Complete(r)
 }

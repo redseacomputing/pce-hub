@@ -13,8 +13,8 @@ type ConfigMapReference struct {
 	Key string `json:"key,omitempty"`
 }
 
-// NIS2ComplianceReportSpec definiert den gewünschten Zustand des NIS2ComplianceReport.
-type NIS2ComplianceReportSpec struct {
+// Nis2ComplianceReportSpec definiert den gewünschten Zustand des Nis2ComplianceReport.
+type Nis2ComplianceReportSpec struct {
 	// ScanConfigMapRef verweist auf die Quelle der OSCAL-Scan-Daten (z. B. eine ConfigMap von Kubescape/Falco/Velero).
 	ScanConfigMapRef string `json:"scanConfigMapRef"`
 
@@ -40,8 +40,8 @@ type ArticleComplianceSummary struct {
 	UnsatisfiedFindings int `json:"unsatisfiedFindings"`
 }
 
-// NIS2ComplianceReportStatus definiert den beobachteten Zustand nach der Engine-Ausführung.
-type NIS2ComplianceReportStatus struct {
+// Nis2ComplianceReportStatus definiert den beobachteten Zustand nach der Engine-Ausführung.
+type Nis2ComplianceReportStatus struct {
 	// Phase beschreibt den aktuellen Zustand der Verarbeitung (Pending, Processing, Completed, Failed)
 	// +kubebuilder:validation:Enum=Pending;Processing;Completed;Failed
 	Phase string `json:"phase,omitempty"`
@@ -69,24 +69,24 @@ type NIS2ComplianceReportStatus struct {
 // +kubebuilder:printcolumn:name="Overall Status",type="string",JSONPath=".status.overallStatus"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// NIS2ComplianceReport ist das Schema für die Custom Resource der Policy Crosswalk Engine.
-type NIS2ComplianceReport struct {
+// Nis2ComplianceReport ist das Schema für die Custom Resource der Policy Crosswalk Engine.
+type Nis2ComplianceReport struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NIS2ComplianceReportSpec   `json:"spec,omitempty"`
-	Status NIS2ComplianceReportStatus `json:"status,omitempty"`
+	Spec   Nis2ComplianceReportSpec   `json:"spec,omitempty"`
+	Status Nis2ComplianceReportStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// NIS2ComplianceReportList enthält eine Liste von NIS2ComplianceReport.
-type NIS2ComplianceReportList struct {
+// Nis2ComplianceReportList enthält eine Liste von Nis2ComplianceReport.
+type Nis2ComplianceReportList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []NIS2ComplianceReport `json:"items"`
+	Items           []Nis2ComplianceReport `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&NIS2ComplianceReport{}, &NIS2ComplianceReportList{})
+	SchemeBuilder.Register(&Nis2ComplianceReport{}, &Nis2ComplianceReportList{})
 }
