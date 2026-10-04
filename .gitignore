@@ -1,0 +1,16 @@
+# Binaries & Builds
+bin/
+dist/
+*.out
+*.exe
+
+# Go dependencies / Cache
+vendor/
+/cover.out
+
+# IDEs
+.idea/
+.vscode/
+
+# OS
+.DS_Store

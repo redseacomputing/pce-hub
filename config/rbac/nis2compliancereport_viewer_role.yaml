@@ -1,0 +1,23 @@
+# permissions for end users to view nis2compliancereports.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: pce-hub
+    app.kubernetes.io/managed-by: kustomize
+  name: nis2compliancereport-viewer-role
+rules:
+- apiGroups:
+  - pce.redseacomputing.github.com.redseacomputing.github.com
+  resources:
+  - nis2compliancereports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - pce.redseacomputing.github.com.redseacomputing.github.com
+  resources:
+  - nis2compliancereports/status
+  verbs:
+  - get

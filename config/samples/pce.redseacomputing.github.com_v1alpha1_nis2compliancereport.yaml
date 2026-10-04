@@ -1,0 +1,9 @@
+apiVersion: pce.redseacomputing.github.com.redseacomputing.github.com/v1alpha1
+kind: Nis2ComplianceReport
+metadata:
+  labels:
+    app.kubernetes.io/name: pce-hub
+    app.kubernetes.io/managed-by: kustomize
+  name: nis2compliancereport-sample
+spec:
+  # TODO(user): Add fields here

@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- pce.redseacomputing.github.com_v1alpha1_nis2compliancereport.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
