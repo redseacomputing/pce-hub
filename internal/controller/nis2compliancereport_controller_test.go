@@ -1,19 +1,3 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
@@ -21,64 +5,60 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	pceredseacomputinggithubcomv1alpha1 "github.com/redseacomputing/pce-hub/api/v1alpha1"
 )
 
 var _ = Describe("Nis2ComplianceReport Controller", func() {
 	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+		It("foo", func() {
+			ctx := context.Background()
 
-		ctx := context.Background()
-
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
-		}
-		nis2compliancereport := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{}
-
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind Nis2ComplianceReport")
-			err := k8sClient.Get(ctx, typeNamespacedName, nis2compliancereport)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+			// Arrange: CRD in envtest anlegen
+			res := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-report",
+					Namespace: "default",
+				},
 			}
-		})
+			Expect(k8sClient.Create(ctx, res)).To(Succeed())
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Cleanup the specific resource instance Nis2ComplianceReport")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &Nis2ComplianceReportReconciler{
+			// Act: Reconciler manuell fuer die Ressource abrufen
+			controller := &Nis2ComplianceReportReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
+			_, err := controller.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      "test-report",
+					Namespace: "default",
+				},
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			Eventually(func(g Gomega) {
+				updatedResource := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      "test-report",
+					Namespace: "default",
+				}, updatedResource)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				g.Expect(updatedResource.Status.Conditions).NotTo(BeEmpty())
+				var readyCond *metav1.Condition
+				for _, c := range updatedResource.Status.Conditions {
+					if c.Type == "Ready" {
+						readyCond = &c
+						break
+					}
+				}
+				g.Expect(readyCond).NotTo(BeNil(), "Condition 'Ready' sollte existieren")
+				g.Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(readyCond.Reason).To(Equal("ScanCompleted"))
+			}, "5s", "100ms").Should(Succeed())
 		})
 	})
 })

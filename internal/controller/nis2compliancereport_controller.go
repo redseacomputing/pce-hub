@@ -19,6 +19,8 @@ package controller
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,7 +51,25 @@ type Nis2ComplianceReportReconciler struct {
 func (r *Nis2ComplianceReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	// 1. Objekt laden
+	var report pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport
+	if err := r.Get(ctx, req.NamespacedName, &report); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// 2. Ready-Condition setzen
+	meta.SetStatusCondition(&report.Status.Conditions, metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionTrue,
+		Reason:             "ScanCompleted",
+		Message:            "NIS2 scan exectuion finished",
+		LastTransitionTime: metav1.Now(),
+	})
+
+	// 3. Status in Kubernetes / envtest speichern
+	if err := r.Status().Update(ctx, &report); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
