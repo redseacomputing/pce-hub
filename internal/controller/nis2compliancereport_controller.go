@@ -18,10 +18,14 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -35,21 +39,15 @@ type Nis2ComplianceReportReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=pce.redseacomputing.github.com.redseacomputing.github.com,resources=nis2compliancereports,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=pce.redseacomputing.github.com.redseacomputing.github.com,resources=nis2compliancereports/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=pce.redseacomputing.github.com.redseacomputing.github.com,resources=nis2compliancereports/finalizers,verbs=update
+// +kubebuilder:rbac:groups=pce.redseacomputing.github.com,resources=nis2compliancereports,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=pce.redseacomputing.github.com,resources=nis2compliancereports/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=pce.redseacomputing.github.com,resources=nis2compliancereports/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Nis2ComplianceReport object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.0/pkg/reconcile
 func (r *Nis2ComplianceReportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	// 1. Objekt laden
 	var report pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport
@@ -57,21 +55,60 @@ func (r *Nis2ComplianceReportReconciler) Reconcile(ctx context.Context, req ctrl
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// 2. Ready-Condition setzen
+	// 2. Scan-Daten aus der referenzierten Quelle (Spoke) lesen
+	scanData, err := r.readScanData(ctx, &report)
+	if err != nil {
+		logger.Info("spoke unreachable / scan data missing", "error", err)
+		return r.degradeSpoke(ctx, &report, err)
+	}
+	_ = scanData
+
+	// TODO Guiding Test 2: parser.ParseAssessmentResults + engine.BuildScorecard -> Status
+	return ctrl.Result{}, nil
+}
+
+// degradeSpoke spiegelt einen nicht erreichbaren Spoke transparent im Status
+// (Condition SpokeAuditReady=False, Reason SpokeUnreachable, Phase Degraded)
+// und plant einen Retry - ohne Crash und ohne Backoff-Sturm.
+func (r *Nis2ComplianceReportReconciler) degradeSpoke(ctx context.Context,
+	report *pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport, cause error,
+) (ctrl.Result, error) {
 	meta.SetStatusCondition(&report.Status.Conditions, metav1.Condition{
-		Type:               "Ready",
-		Status:             metav1.ConditionTrue,
-		Reason:             "ScanCompleted",
-		Message:            "NIS2 scan exectuion finished",
+		Type:               "SpokeAuditReady",
+		Status:             metav1.ConditionFalse,
+		Reason:             "SpokeUnreachable",
+		Message:            fmt.Sprintf("spoke scan source not reachable: %v", cause),
+		ObservedGeneration: report.Generation,
 		LastTransitionTime: metav1.Now(),
 	})
+	report.Status.Phase = "Degraded"
+	report.Status.ObservedGeneration = report.Generation
 
-	// 3. Status in Kubernetes / envtest speichern
-	if err := r.Status().Update(ctx, &report); err != nil {
-		return ctrl.Result{}, err
+	if err := r.Status().Update(ctx, report); err != nil {
+		return ctrl.Result{}, err // nur Status-Update-Fehler sind echte Fehler
+	}
+	return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
+}
+
+// readScanData liest die OSCAL-Scan-Daten aus der in der Spec referenzierten ConfigMap.
+func (r *Nis2ComplianceReportReconciler) readScanData(ctx context.Context,
+	report *pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport,
+) ([]byte, error) {
+	key := "oscal"
+	if report.Spec.ScanConfigMapKey != "" {
+		key = report.Spec.ScanConfigMapKey
 	}
 
-	return ctrl.Result{}, nil
+	cmKey := types.NamespacedName{Namespace: report.Namespace, Name: report.Spec.ScanConfigMapRef}
+	cm := &corev1.ConfigMap{}
+	if err := r.Get(ctx, cmKey, cm); err != nil {
+		return nil, err
+	}
+	data, ok := cm.Data[key]
+	if !ok {
+		return nil, fmt.Errorf("configmap %s has no key %q", cmKey.Name, key)
+	}
+	return []byte(data), nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
