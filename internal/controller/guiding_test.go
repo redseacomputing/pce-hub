@@ -24,7 +24,6 @@ import (
 // ("Spoke veroeffentlicht Scans als OSCAL in die vom Hub gelesene Quelle").
 var _ = Describe("Guiding Test 4: unreachable spoke sets degraded condition", func() {
 	It("sets SpokeAuditReady=False with reason SpokeUnreachable instead of crashing", func() {
-		Skip("waiting for spoke milestone M1: spoke publishes OSCAL scans to hub source")
 
 		report := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{
 			ObjectMeta: metav1.ObjectMeta{
