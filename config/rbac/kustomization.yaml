@@ -24,4 +24,6 @@ resources:
 # if you do not want those helpers be installed with your Project.
 - nis2compliancereport_editor_role.yaml
 - nis2compliancereport_viewer_role.yaml
-
+# Spoke publisher identity: erlaubt dem pce-spoke Agent, ausschliesslich
+# die Scan-Quell-ConfigMap zu schreiben.
+- spoke-identity.yaml

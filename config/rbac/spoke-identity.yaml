@@ -1,0 +1,35 @@
+# Spoke-Identity: der Agent im Spoke-Cluster publiziert hiermit seine
+# Scan-Ergebnisse in GENAU EINE ConfigMap (resourceNames-Scoping).
+# M2-TODO: cross-cluster identity (bound token exchange / OIDC federation).
+# M1: gueltig fuer Setups, in denen der Agent per kubeconfig auf den Hub zugreift.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pce-spoke-agent
+  namespace: pce-hub-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pce-spoke-publisher
+  namespace: pce-hub-system
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["spoke-scan-source"]
+    verbs: ["get", "create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pce-spoke-publisher
+  namespace: pce-hub-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pce-spoke-publisher
+subjects:
+  - kind: ServiceAccount
+    name: pce-spoke-agent
+    namespace: pce-hub-system
+
