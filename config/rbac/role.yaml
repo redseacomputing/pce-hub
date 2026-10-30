@@ -5,7 +5,15 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - pce.redseacomputing.github.com.redseacomputing.github.com
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - pce.redseacomputing.github.com
   resources:
   - nis2compliancereports
   verbs:
@@ -17,13 +25,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - pce.redseacomputing.github.com.redseacomputing.github.com
+  - pce.redseacomputing.github.com
   resources:
   - nis2compliancereports/finalizers
   verbs:
   - update
 - apiGroups:
-  - pce.redseacomputing.github.com.redseacomputing.github.com
+  - pce.redseacomputing.github.com
   resources:
   - nis2compliancereports/status
   verbs:

@@ -142,6 +142,16 @@ func (in *Nis2ComplianceReportStatus) DeepCopyInto(out *Nis2ComplianceReportStat
 		*out = make([]ArticleComplianceSummary, len(*in))
 		copy(*out, *in)
 	}
+	if in.KubescapeScore != nil {
+		in, out := &in.KubescapeScore, &out.KubescapeScore
+		*out = new(int32)
+		**out = **in
+	}
+	if in.ActiveThreatCount != nil {
+		in, out := &in.ActiveThreatCount, &out.ActiveThreatCount
+		*out = new(int32)
+		**out = **in
+	}
 	if in.LastEvaluated != nil {
 		in, out := &in.LastEvaluated, &out.LastEvaluated
 		*out = (*in).DeepCopy()

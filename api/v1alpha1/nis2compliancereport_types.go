@@ -18,6 +18,10 @@ type Nis2ComplianceReportSpec struct {
 	// ScanConfigMapRef verweist auf die Quelle der OSCAL-Scan-Daten (z. B. eine ConfigMap von Kubescape/Falco/Velero).
 	ScanConfigMapRef string `json:"scanConfigMapRef"`
 
+	// ScanConfigMapKey ist der Key innerhalb der Scan-ConfigMap (Default: "oscal").
+	// +optional
+	ScanConfigMapKey string `json:"scanConfigMapKey,omitempty"`
+
 	// CustomMappingConfigMapRef ist eine optionale benutzerdefinierte Mapping-Definition.
 	// Wird diese nicht angegeben oder ist sie fehlerhaft, greift die Engine automatisch auf den einkompilierten Default-Katalog zurück.
 	// +optional
@@ -42,8 +46,9 @@ type ArticleComplianceSummary struct {
 
 // Nis2ComplianceReportStatus definiert den beobachteten Zustand nach der Engine-Ausführung.
 type Nis2ComplianceReportStatus struct {
-	// Phase beschreibt den aktuellen Zustand der Verarbeitung (Pending, Processing, Completed, Failed)
-	// +kubebuilder:validation:Enum=Pending;Processing;Completed;Failed
+	// Phase beschreibt den aktuellen Zustand der Verarbeitung (Pending, Processing, Completed, Degraded, Failed).
+	// Degraded = Spoke nicht erreichbar / Scan-Daten unvollständig, Retry läuft.
+	// +kubebuilder:validation:Enum=Pending;Processing;Completed;Degraded;Failed
 	Phase string `json:"phase,omitempty"`
 
 	// OverallStatus gibt den aggregierten Gesamtstatus an.
@@ -54,11 +59,22 @@ type Nis2ComplianceReportStatus struct {
 	// +optional
 	ArticleSummaries []ArticleComplianceSummary `json:"articleSummaries,omitempty"`
 
+	// KubescapeScore ist der aggregierte Benchmark-Score des letzten Spoke-Audits (0-100).
+	// +optional
+	KubescapeScore *int32 `json:"kubescapeScore,omitempty"`
+
+	// ActiveThreatCount spiegelt aktive Laufzeit-Anomalien (Falco), ohne Remediation.
+	// +optional
+	ActiveThreatCount *int32 `json:"activeThreatCount,omitempty"`
+
 	// LastEvaluated zeigt den Zeitstempel der letzten Auswertung.
 	// +optional
 	LastEvaluated *metav1.Time `json:"lastEvaluated,omitempty"`
 
-	// Conditions repräsentiert die Standard-Kubernetes-Conditions (z. B. Ready, Error)
+	// ObservedGeneration ist die Generation, deren Spec zuletzt ausgewertet wurde.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Conditions repräsentiert die Standard-Kubernetes-Conditions (z. B. SpokeAuditReady, Ready).
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }

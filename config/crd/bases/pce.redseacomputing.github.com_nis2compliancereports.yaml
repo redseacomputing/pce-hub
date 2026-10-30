@@ -66,6 +66,10 @@ spec:
                 required:
                 - name
                 type: object
+              scanConfigMapKey:
+                description: 'ScanConfigMapKey ist der Key innerhalb der Scan-ConfigMap
+                  (Default: "oscal").'
+                type: string
               scanConfigMapRef:
                 description: ScanConfigMapRef verweist auf die Quelle der OSCAL-Scan-Daten
                   (z. B. eine ConfigMap von Kubescape/Falco/Velero).
@@ -77,6 +81,11 @@ spec:
             description: Nis2ComplianceReportStatus definiert den beobachteten Zustand
               nach der Engine-Ausführung.
             properties:
+              activeThreatCount:
+                description: ActiveThreatCount spiegelt aktive Laufzeit-Anomalien
+                  (Falco), ohne Remediation.
+                format: int32
+                type: integer
               articleSummaries:
                 description: ArticleSummaries enthält die feingranulare Zusammenfassung
                   pro NIS2-Artikel.
@@ -112,7 +121,7 @@ spec:
                 type: array
               conditions:
                 description: Conditions repräsentiert die Standard-Kubernetes-Conditions
-                  (z. B. Ready, Error)
+                  (z. B. SpokeAuditReady, Ready).
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -168,10 +177,20 @@ spec:
                   - type
                   type: object
                 type: array
+              kubescapeScore:
+                description: KubescapeScore ist der aggregierte Benchmark-Score des
+                  letzten Spoke-Audits (0-100).
+                format: int32
+                type: integer
               lastEvaluated:
                 description: LastEvaluated zeigt den Zeitstempel der letzten Auswertung.
                 format: date-time
                 type: string
+              observedGeneration:
+                description: ObservedGeneration ist die Generation, deren Spec zuletzt
+                  ausgewertet wurde.
+                format: int64
+                type: integer
               overallStatus:
                 description: OverallStatus gibt den aggregierten Gesamtstatus an.
                 enum:
@@ -180,12 +199,14 @@ spec:
                 - Unknown
                 type: string
               phase:
-                description: Phase beschreibt den aktuellen Zustand der Verarbeitung
-                  (Pending, Processing, Completed, Failed)
+                description: |-
+                  Phase beschreibt den aktuellen Zustand der Verarbeitung (Pending, Processing, Completed, Degraded, Failed).
+                  Degraded = Spoke nicht erreichbar / Scan-Daten unvollständig, Retry läuft.
                 enum:
                 - Pending
                 - Processing
                 - Completed
+                - Degraded
                 - Failed
                 type: string
             type: object
