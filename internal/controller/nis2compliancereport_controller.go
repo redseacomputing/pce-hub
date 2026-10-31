@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -31,6 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	pceredseacomputinggithubcomv1alpha1 "github.com/redseacomputing/pce-hub/api/v1alpha1"
+	mapping "github.com/redseacomputing/pce/pkg/mapping"
+  parser "github.com/redseacomputing/pce/pkg/parser"
 )
 
 // Nis2ComplianceReportReconciler reconciles a Nis2ComplianceReport object
@@ -56,17 +59,20 @@ func (r *Nis2ComplianceReportReconciler) Reconcile(ctx context.Context, req ctrl
 	}
 
 	// 2. Scan-Daten aus der referenzierten Quelle (Spoke) lesen
-	scanData, err := r.readScanData(ctx, &report)
-	if err != nil {
-		logger.Info("spoke unreachable / scan data missing", "error", err)
-		return r.degradeSpoke(ctx, &report, err)
-	}
-	_ = scanData
-
-	// TODO Guiding Test 2: parser.ParseAssessmentResults + engine.BuildScorecard -> Status
-	return ctrl.Result{}, nil
+	  scanData, err := r.readScanData(ctx, &report)
+    if err != nil {
+        logger.Info("spoke unreachable / scan data missing", "error", err)
+        return r.degradeSpoke(ctx, &report, err)
+    }
+    // 3. Guiding Test 2: OSCAL auswerten -> Scorecard -> Status
+    if err := r.evaluateScan(ctx, &report, scanData); err != nil {
+        logger.Error(err, "scan evaluation failed")
+        report.Status.Phase = "Failed"
+        _ = r.Status().Update(ctx, &report)
+        return ctrl.Result{}, err
+    }
+    return ctrl.Result{}, nil
 }
-
 // degradeSpoke spiegelt einen nicht erreichbaren Spoke transparent im Status
 // (Condition SpokeAuditReady=False, Reason SpokeUnreachable, Phase Degraded)
 // und plant einen Retry - ohne Crash und ohne Backoff-Sturm.
@@ -109,6 +115,94 @@ func (r *Nis2ComplianceReportReconciler) readScanData(ctx context.Context,
 		return nil, fmt.Errorf("configmap %s has no key %q", cmKey.Name, key)
 	}
 	return []byte(data), nil
+}
+
+// evaluateScan wertet die Spoke-OSCAL-Daten aus und schreibt den vollstaendigen
+// Compliance-Status (Guiding Test 2). Normalisierung: Engine spricht klein-
+// geschrieben ("unsatisfied"), die CRD-Enum verlangt "Unsatisfied".
+func (r *Nis2ComplianceReportReconciler) evaluateScan(ctx context.Context,
+    report *pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport, scanData []byte,
+) error {
+    results, err := parser.ParseAssessmentResults(bytes.NewReader(scanData))
+    if err != nil {
+        return fmt.Errorf("parse scan source: %w", err)
+    }
+
+    engine := mapping.NewPolicyCrosswalkEngine()
+    if err := engine.LoadCatalogWithFallback(nil); err != nil {
+        return fmt.Errorf("load mapping catalog: %w", err)
+    }
+
+    aggregates := engine.BuildScorecard(results[0])
+
+    summaries := make([]pceredseacomputinggithubcomv1alpha1.ArticleComplianceSummary, 0, len(aggregates))
+    overall, worst := "Unknown", 0 // 0=satisfied, 1=unknown, 2=unsatisfied
+    satisfied, total := 0, 0
+    for _, agg := range aggregates {
+        s := pceredseacomputinggithubcomv1alpha1.ArticleComplianceSummary{
+            Article:             string(agg.Article),
+            Status:              normalizeStatus(string(agg.Status)),
+            TotalFindings:       agg.TotalCount,
+            UnsatisfiedFindings: agg.TotalCount - agg.SatisfiedCount,
+        }
+        summaries = append(summaries, s)
+        satisfied += agg.SatisfiedCount
+        total += agg.TotalCount
+        switch agg.Status {
+        case mapping.StatusUnsatisfied:
+            worst = 2
+        case mapping.StatusUnknown:
+            if worst < 1 {
+                worst = 1
+            }
+        }
+    }
+    switch worst {
+    case 2:
+        overall = "Unsatisfied"
+    case 1:
+        overall = "Unknown"
+    case 0:
+        overall = "Satisfied"
+    }
+    if len(aggregates) == 0 {
+        overall = "Unknown" // keine Evidenz = unbekannt
+    }
+
+    var score int32 = 0
+    if total > 0 {
+        score = int32(100 * satisfied / total)
+    }
+
+    report.Status.Phase = "Completed"
+    report.Status.OverallStatus = overall
+    report.Status.ArticleSummaries = summaries
+    report.Status.KubescapeScore = &score
+    report.Status.LastEvaluated = &metav1.Time{Time: time.Now().UTC()}
+    report.Status.ObservedGeneration = report.Generation
+    meta.SetStatusCondition(&report.Status.Conditions, metav1.Condition{
+        Type:               "SpokeAuditReady",
+        Status:             metav1.ConditionTrue,
+        Reason:             "SpokeAuditDelivered",
+        Message:            "scan source evaluated",
+        ObservedGeneration: report.Generation,
+        LastTransitionTime: metav1.Now(),
+    })
+    return r.Status().Update(ctx, report)
+}
+
+// normalizeStatus hebt die Engine-Status-Sprache auf die CRD-Enum an.
+func normalizeStatus(s string) string {
+    switch s {
+    case string(mapping.StatusSatisfied):
+        return "Satisfied"
+    case string(mapping.StatusUnsatisfied):
+        return "Unsatisfied"
+    case string(mapping.StatusNotApplicable):
+        return "Unknown" // CRD-Enum hat kein NotApplicable (M2: Enum erweitern?)
+    default:
+        return "Unknown"
+    }
 }
 
 // SetupWithManager sets up the controller with the Manager.
