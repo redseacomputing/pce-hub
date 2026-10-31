@@ -135,9 +135,21 @@ func (r *Nis2ComplianceReportReconciler) evaluateScan(ctx context.Context,
 
     aggregates := engine.BuildScorecard(results[0])
 
-    summaries := make([]pceredseacomputinggithubcomv1alpha1.ArticleComplianceSummary, 0, len(aggregates))
+		summaries := make([]pceredseacomputinggithubcomv1alpha1.ArticleComplianceSummary, 0, len(aggregates))
     overall, worst := "Unknown", 0 // 0=satisfied, 1=unknown, 2=unsatisfied
+
+    // KubescapeScore = Benchmark-Score des AUDITS: nur echte Findings.
+    // Coverage-Gaps (synthetische StatusUnknown aus BuildScorecard) sind
+    // Monitoring-Lücken und zaehlen NICHT in den Score - sie bleiben
+    // ueber ArticleSummaries (Status Unknown) sichtbar.
+    realStatuses := engine.MapAssessmentToNIS2(results[0])
     satisfied, total := 0, 0
+    for _, s := range realStatuses {
+        if s.Status == mapping.StatusSatisfied {
+            satisfied++
+        }
+        total++
+    }
     for _, agg := range aggregates {
         s := pceredseacomputinggithubcomv1alpha1.ArticleComplianceSummary{
             Article:             string(agg.Article),
@@ -146,8 +158,6 @@ func (r *Nis2ComplianceReportReconciler) evaluateScan(ctx context.Context,
             UnsatisfiedFindings: agg.TotalCount - agg.SatisfiedCount,
         }
         summaries = append(summaries, s)
-        satisfied += agg.SatisfiedCount
-        total += agg.TotalCount
         switch agg.Status {
         case mapping.StatusUnsatisfied:
             worst = 2
@@ -199,8 +209,8 @@ func normalizeStatus(s string) string {
     case string(mapping.StatusUnsatisfied):
         return "Unsatisfied"
     case string(mapping.StatusNotApplicable):
-        return "Unknown" // CRD-Enum hat kein NotApplicable (M2: Enum erweitern?)
-    default:
+        return "NotApplicable"
+		default:
         return "Unknown"
     }
 }

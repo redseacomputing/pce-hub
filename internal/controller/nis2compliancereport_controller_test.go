@@ -139,4 +139,57 @@ var _ = Describe("Nis2ComplianceReport Controller", func() {
           })
       })
 
+			It("computes kubescape score from real findings only - coverage gaps do not dilute it", func() {
+      ctx := context.Background()
+
+            // Ein ECHTES, bestandenes SC-8-Finding. Falls der Katalog weitere
+            // Controls fuer Art.21(2)h kennt, erzeugt BuildScorecard dafuer
+            // synthetische StatusUnknown-Gaps - der Score muss trotzdem 100 sein.
+            oscalPayload := `{
+              "assessment-results": {
+                "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                "metadata": {"title": "Kubescape Spoke Scan Result", "oscal-version": "1.1.2"},
+                "results": [{
+                  "uuid": "ffffffff-0000-1111-2222-333333333333",
+                  "title": "Kubescape Spoke Scan",
+                  "findings": [{
+                    "target": {"target-id": "SC-8", "status": {"state": "satisfied"}},
+                    "description": "kubescape C-0035: Pod default/clean-pod"
+                  }]
+                }]
+              }
+            }`
+
+            source := &corev1.ConfigMap{
+                ObjectMeta: metav1.ObjectMeta{Name: "gt2-score-source", Namespace: "default"},
+                Data:       map[string]string{"oscal": oscalPayload},
+            }
+            Expect(k8sClient.Create(ctx, source)).To(Succeed())
+
+            report := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{
+                ObjectMeta: metav1.ObjectMeta{Name: "gt2-score-report", Namespace: "default"},
+                Spec: pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReportSpec{
+                    ScanConfigMapRef: "gt2-score-source",
+                },
+            }
+            Expect(k8sClient.Create(ctx, report)).To(Succeed())
+
+            controller := &Nis2ComplianceReportReconciler{
+                Client: k8sClient, Scheme: k8sClient.Scheme(),
+            }
+            _, err := controller.Reconcile(ctx, reconcile.Request{
+                NamespacedName: types.NamespacedName{Name: "gt2-score-report", Namespace: "default"},
+            })
+            Expect(err).NotTo(HaveOccurred())
+
+            updated := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{}
+            Expect(k8sClient.Get(ctx, types.NamespacedName{
+                Name: "gt2-score-report", Namespace: "default",
+            }, updated)).To(Succeed())
+
+            Expect(updated.Status.KubescapeScore).NotTo(BeNil())
+            Expect(*updated.Status.KubescapeScore).To(Equal(int32(100)),
+                "echtes 1/1-Finding muss Score 100 ergeben; synthetische Coverage-Gaps duerfen den Score nicht verwässern")
+        })
+
 })
