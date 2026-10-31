@@ -34,7 +34,7 @@ type ArticleComplianceSummary struct {
 	Article string `json:"article"`
 
 	// Status beschreibt die Gesamtbewertung für diesen Artikel (Satisfied, Unsatisfied, Unknown)
-	// +kubebuilder:validation:Enum=Satisfied;Unsatisfied;Unknown
+	// +kubebuilder:validation:Enum=Satisfied;Unsatisfied;Unknown;NotApplicable
 	Status string `json:"status"`
 
 	// TotalFindings ist die Anzahl aller zugeordneten Findings
