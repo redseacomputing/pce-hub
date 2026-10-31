@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -64,7 +65,12 @@ func (r *Nis2ComplianceReportReconciler) Reconcile(ctx context.Context, req ctrl
         logger.Info("spoke unreachable / scan data missing", "error", err)
         return r.degradeSpoke(ctx, &report, err)
     }
-    // 3. Guiding Test 2: OSCAL auswerten -> Scorecard -> Status
+
+    // 3. Falco-Threat-Aggregat (optional): fehlende Quelle ist keine
+    // Degradation, sondern "keine Evidenz" -> ActiveThreatCount bleibt nil.
+    report.Status.ActiveThreatCount = r.readActiveThreatCount(ctx, &report)
+
+    // 4. Guiding Test 2: OSCAL auswerten -> Scorecard -> Status
     if err := r.evaluateScan(ctx, &report, scanData); err != nil {
         logger.Error(err, "scan evaluation failed")
         report.Status.Phase = "Failed"
@@ -213,6 +219,60 @@ func normalizeStatus(s string) string {
 		default:
         return "Unknown"
     }
+}
+
+// threatAggregate ist das vom Spoke publishede Falco-Aggregat (Vertrag pkg/threat).
+type threatAggregate struct {
+    SchemaVersion     string          `json:"schemaVersion"`
+    ActiveThreatCount int32           `json:"activeThreatCount"`
+    Threats           []threatSummary `json:"threats"`
+    GeneratedAt        string          `json:"generatedAt"`
+}
+
+type threatSummary struct {
+    Rule      string `json:"rule"`
+    Container string `json:"container"`
+    Count     int32  `json:"count"`
+    LastSeen  string `json:"lastSeen"`
+}
+
+// readActiveThreatCount liest das Falco-Aggregat des Spokes. Abwesenheit
+// (kein Ref, keine ConfigMap, kein Key) liefert nil = keine Evidenz.
+// Invalides JSON wird geloggt und als keine Evidenz behandelt - ein
+// kaputtes Aggregat darf die Compliance-Auswertung (GT2) nicht blockieren.
+func (r *Nis2ComplianceReportReconciler) readActiveThreatCount(ctx context.Context,
+    report *pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport,
+) *int32 {
+    logger := log.FromContext(ctx)
+
+    if report.Spec.ThreatConfigMapRef == "" {
+        return nil
+    }
+    key := "threat"
+    if report.Spec.ThreatConfigMapKey != "" {
+        key = report.Spec.ThreatConfigMapKey
+    }
+
+    cm := &corev1.ConfigMap{}
+    if err := r.Get(ctx, types.NamespacedName{
+        Namespace: report.Namespace, Name: report.Spec.ThreatConfigMapRef,
+    }, cm); err != nil {
+        logger.Info("threat source absent - treating as no evidence", "ref", report.Spec.ThreatConfigMapRef)
+        return nil
+    }
+    raw, ok := cm.Data[key]
+    if !ok {
+        logger.Info("threat source has no payload key", "key", key)
+        return nil
+    }
+
+    var agg threatAggregate
+    if err := json.Unmarshal([]byte(raw), &agg); err != nil {
+        logger.Info("threat payload invalid - treating as no evidence", "error", err)
+        return nil
+    }
+    count := agg.ActiveThreatCount
+    return &count
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -191,5 +191,96 @@ var _ = Describe("Nis2ComplianceReport Controller", func() {
             Expect(*updated.Status.KubescapeScore).To(Equal(int32(100)),
                 "echtes 1/1-Finding muss Score 100 ergeben; synthetische Coverage-Gaps duerfen den Score nicht verwässern")
         })
+			
+			        Context("when the spoke publishes falco threat aggregates", func() {
+            It("mirrors active threat count from the threat source", func() {
+                ctx := context.Background()
 
+                // Spoke-Realitaet: das Aggregat, das pkg/threat im pce-spoke
+                // publishen wird (2 aktive, nach Regel+Container dedupliziert)
+                threatPayload := `{
+                  "schemaVersion": "1",
+                  "activeThreatCount": 2,
+                  "threats": [
+                    {"rule": "Terminal shell in container", "container": "abc123", "count": 17, "lastSeen": "2026-10-31T10:58:00Z"},
+                    {"rule": "Read sensitive file untrusted", "container": "def456", "count": 1, "lastSeen": "2026-10-31T11:02:00Z"}
+                  ],
+                  "generatedAt": "2026-10-31T11:03:00Z"
+                }`
+
+                scanSource := &corev1.ConfigMap{
+                    ObjectMeta: metav1.ObjectMeta{Name: "gt3-scan-source", Namespace: "default"},
+                    Data:       map[string]string{"oscal": `{"assessment-results": {"uuid": "11111111-2222-3333-4444-555555555555", "metadata": {"title": "t", "oscal-version": "1.1.2"}, "results": [{"uuid": "66666666-7777-8888-9999-000000000000", "title": "r", "findings": [{"target": {"target-id": "SC-8", "status": {"state": "satisfied"}}}]}]}}`},
+                }
+                Expect(k8sClient.Create(ctx, scanSource)).To(Succeed())
+
+                threatSource := &corev1.ConfigMap{
+                    ObjectMeta: metav1.ObjectMeta{Name: "gt3-threat-source", Namespace: "default"},
+                    Data:       map[string]string{"threat": threatPayload},
+                }
+                Expect(k8sClient.Create(ctx, threatSource)).To(Succeed())
+
+                report := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{
+                    ObjectMeta: metav1.ObjectMeta{Name: "gt3-report", Namespace: "default"},
+                    Spec: pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReportSpec{
+                        ScanConfigMapRef:   "gt3-scan-source",
+                        ThreatConfigMapRef: "gt3-threat-source",
+                    },
+                }
+                Expect(k8sClient.Create(ctx, report)).To(Succeed())
+
+                controller := &Nis2ComplianceReportReconciler{
+                    Client: k8sClient, Scheme: k8sClient.Scheme(),
+                }
+                _, err := controller.Reconcile(ctx, reconcile.Request{
+                    NamespacedName: types.NamespacedName{Name: "gt3-report", Namespace: "default"},
+                })
+                Expect(err).NotTo(HaveOccurred())
+
+                updated := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{}
+                Expect(k8sClient.Get(ctx, types.NamespacedName{
+                    Name: "gt3-report", Namespace: "default",
+                }, updated)).To(Succeed())
+
+                Expect(updated.Status.Phase).To(Equal("Completed"))
+                Expect(updated.Status.ActiveThreatCount).NotTo(BeNil(), "ActiveThreatCount sollte gesetzt sein")
+                Expect(*updated.Status.ActiveThreatCount).To(Equal(int32(2)))
+            })
+
+            It("leaves active threat count undefined when no threat source is referenced", func() {
+                ctx := context.Background()
+
+                scanSource := &corev1.ConfigMap{
+                    ObjectMeta: metav1.ObjectMeta{Name: "gt3b-scan-source", Namespace: "default"},
+                    Data:       map[string]string{"oscal": `{"assessment-results": {"uuid": "11111111-2222-3333-4444-555555555555", "metadata": {"title": "t", "oscal-version": "1.1.2"}, "results": [{"uuid": "66666666-7777-8888-9999-000000000000", "title": "r", "findings": [{"target": {"target-id": "SC-8", "status": {"state": "satisfied"}}}]}]}}`},
+                }
+                Expect(k8sClient.Create(ctx, scanSource)).To(Succeed())
+
+                // kein ThreatConfigMapRef: reine OSCAL-Schiene
+                report := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{
+                    ObjectMeta: metav1.ObjectMeta{Name: "gt3b-report", Namespace: "default"},
+                    Spec: pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReportSpec{
+                        ScanConfigMapRef: "gt3b-scan-source",
+                    },
+                }
+                Expect(k8sClient.Create(ctx, report)).To(Succeed())
+
+                controller := &Nis2ComplianceReportReconciler{
+                    Client: k8sClient, Scheme: k8sClient.Scheme(),
+                }
+                _, err := controller.Reconcile(ctx, reconcile.Request{
+                    NamespacedName: types.NamespacedName{Name: "gt3b-report", Namespace: "default"},
+                })
+                Expect(err).NotTo(HaveOccurred())
+
+                updated := &pceredseacomputinggithubcomv1alpha1.Nis2ComplianceReport{}
+                Expect(k8sClient.Get(ctx, types.NamespacedName{
+                    Name: "gt3b-report", Namespace: "default",
+                }, updated)).To(Succeed())
+
+                // keine Evidenz = nil, NICHT 0, und kein Degraded
+                Expect(updated.Status.ActiveThreatCount).To(BeNil())
+                Expect(updated.Status.Phase).To(Equal("Completed"))
+            })
+        })
 })
