@@ -26,6 +26,16 @@ type Nis2ComplianceReportSpec struct {
 	// Wird diese nicht angegeben oder ist sie fehlerhaft, greift die Engine automatisch auf den einkompilierten Default-Katalog zurück.
 	// +optional
 	CustomMappingConfigMapRef *ConfigMapReference `json:"customMappingConfigMapRef,omitempty"`
+
+	// ThreatConfigMapRef verweist optional auf die Falco-Threat-Quelle des Spokes
+  // (aggregierte Laufzeit-Anomalien). Fehlt sie, bleibt ActiveThreatCount
+  // undefiniert (keine Evidenz) - das ist KEINE Degradation.
+  // +optional
+  ThreatConfigMapRef string `json:"threatConfigMapRef,omitempty"`
+
+  // ThreatConfigMapKey ist der Key innerhalb der Threat-ConfigMap (Default: "threat").
+  // +optional
+  ThreatConfigMapKey string `json:"threatConfigMapKey,omitempty"`
 }
 
 // ArticleComplianceSummary fasst den Compliance-Status für einen einzelnen NIS2-Artikel zusammen.

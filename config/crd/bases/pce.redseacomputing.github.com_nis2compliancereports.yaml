@@ -74,6 +74,16 @@ spec:
                 description: ScanConfigMapRef verweist auf die Quelle der OSCAL-Scan-Daten
                   (z. B. eine ConfigMap von Kubescape/Falco/Velero).
                 type: string
+              threatConfigMapKey:
+                description: 'ThreatConfigMapKey ist der Key innerhalb der Threat-ConfigMap
+                  (Default: "threat").'
+                type: string
+              threatConfigMapRef:
+                description: |-
+                  ThreatConfigMapRef verweist optional auf die Falco-Threat-Quelle des Spokes
+                  (aggregierte Laufzeit-Anomalien). Fehlt sie, bleibt ActiveThreatCount
+                  undefiniert (keine Evidenz) - das ist KEINE Degradation.
+                type: string
             required:
             - scanConfigMapRef
             type: object
